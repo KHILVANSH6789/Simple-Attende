@@ -32,12 +32,15 @@
 
 ### 🏠 Groups Dashboard
 - Create unlimited attendance groups (clinic, class, team, gym — anything)
+- **Rename & edit group names** at any time
 - Each group card shows today's present / absent / unset count at a glance
 - Animated attendance progress bar per group
-- Delete groups with confirmation
+- Delete groups with confirmation dialog
+- **Double-back to exit protection** — prevents accidental app closure on Home
 
 ### ✅ Attendance Tab
 - One-tap **Present ✅ / Absent ❌** toggles per member
+- **Quick Phone Dial 📞** — one-tap direct call for absent members with a registered phone number
 - Timestamps recorded when attendance is marked
 - **Mark All Present / Mark All Absent** quick actions
 - Live search to filter members instantly
@@ -51,28 +54,30 @@
 - Searchable member list
 - Category manager to add/remove fields without losing data
 
-### 📅 Calendar Tab
-- Full monthly calendar with **color-coded day indicators**:
-  - 🟢 Green — full attendance
+### 📅 Calendar Tab & Member Filtering
+- Filter calendar by **All Members** or select an **Individual Member**
+- **Weekly, Monthly, and Yearly period metrics** — attendance rate %, present days, absent days, and total sessions
+- Detailed period attendance history log per member
+- Color-coded calendar day indicators:
+  - 🟢 Green — present / full attendance
   - 🟠 Orange — partial attendance
-  - 🔴 Red — all absent
+  - 🔴 Red — absent
   - ⚫ Grey — no data
 - Tap any date to see the complete attendance snapshot for that day
-- Per-member status with timestamps for historical dates
+- Direct Quick Dial button for absent members on selected dates
 
 ### ⚙️ Settings
 - **Theme switcher** with color swatch previews
-- **Sound effects toggle** — enable/disable UI sounds
+- **Sound & Haptics** — toggle UI click sounds and subtle tactile vibration feedback
+- **GitHub Repository** — instant link to source repository in browser
 - **CSV export** — share attendance data for any group via any Android app
 - **Auto-update checker** — checks GitHub for newer releases
 - App version and about info
 
-### 🔊 Sound Effects
-| Sound | Trigger |
-|-------|---------|
-| `Intro_Sound.mp3` | Splash screen animation |
-| `Button_Click.mp3` | Navigation and UI interactions |
-| `Save_Button.mp3` | Saving members and groups |
+### 🔊 Sound Effects & Haptics
+- **Polyphonic low-latency audio pool**: Rapid consecutive button clicks play simultaneously without truncating preceding audio
+- **HD uncompressed audio playback**: Packed with Android AAPT `noCompress` rules
+- **Subtle haptic feedback**: Instant tactile response on taps and saves
 
 ---
 
