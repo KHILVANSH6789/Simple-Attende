@@ -37,6 +37,7 @@
 - Animated attendance progress bar per group
 - Delete groups with confirmation dialog
 - **Double-back to exit protection** — prevents accidental app closure on Home
+- **In-App Update Alert Banner & Badge** — alerts you immediately when an update is available
 
 ### ✅ Attendance Tab
 - One-tap **Present ✅ / Absent ❌** toggles per member
@@ -74,8 +75,16 @@
 - **Dataset Import** — restore or merge backup datasets directly from `.json` files or clipboard text with Merge / Replace options
 - **CSV export per group** — share attendance spreadsheets via any Android app
 - **GitHub Repository** — instant link to source repository in browser
-- **Auto-update checker** — checks GitHub for newer releases
+- **Auto-update with Streamed Download & Install** — download progress bar and direct package installer launch
 - **App version and about info**
+
+### 🔔 Auto-Update & Notification System
+- **Background Check on Launch**: Automatically queries GitHub Releases without interrupting your workflow
+- **Android System Notification**: Pops in the Android notification tray (`simple_attende_updates` high-priority channel)
+- **In-App Notification Banner**: Dismissible floating banner on the dashboard with direct "Update" action
+- **Changelog Dialog**: Displays latest release notes and highlights
+- **Real-Time Streamed APK Download**: Progress bar with percentage and downloaded MB / total MB metrics
+- **Native Package Installer**: Automatically launches Android's package installer when the APK download finishes
 
 ### 🔊 Sound Effects & Haptics
 - **Polyphonic low-latency audio pool**: Rapid consecutive button clicks play simultaneously without truncating preceding audio
@@ -157,13 +166,14 @@ lib/
 ├── providers/
 │   ├── settings_provider.dart       # Theme + sound/haptic state management
 │   ├── groups_provider.dart         # Group/member CRUD + importGroups()
-│   └── attendance_provider.dart     # Attendance state, midnight reset, CSV export + importAttendance()
+│   ├── attendance_provider.dart     # Attendance state, midnight reset, CSV export + importAttendance()
+│   └── update_provider.dart         # Auto-check, streamed download, native installer, notifications
 │
 ├── screens/
 │   ├── intro/
 │   │   └── intro_screen.dart        # Slide-in logo animation + sound
 │   ├── home/
-│   │   └── home_screen.dart         # Groups dashboard + create group dialog
+│   │   └── home_screen.dart         # Groups dashboard + in-app update banner & popup
 │   ├── group/
 │   │   ├── group_screen.dart        # Tab container + group header
 │   │   └── tabs/
@@ -171,7 +181,7 @@ lib/
 │   │       ├── members_tab.dart     # Member CRUD + category manager
 │   │       └── calendar_tab.dart    # Calendar + per-member filter & period stats
 │   └── settings/
-│       └── settings_screen.dart     # Theme, sound/haptic, warning card, JSON export/import, CSV
+│       └── settings_screen.dart     # Theme, sound/haptic, warning card, JSON export/import, update progress
 │
 └── widgets/
     └── group_card.dart              # Animated group card with stats
@@ -190,17 +200,21 @@ lib/
 | `google_fonts` | ^6.2.1 | Space Grotesk + Nunito fonts |
 | `intl` | ^0.19.0 | Date formatting |
 | `uuid` | ^4.4.0 | Unique IDs for groups/members |
-| `path_provider` | ^2.1.3 | File paths for CSV & JSON export |
+| `path_provider` | ^2.1.3 | File paths for CSV, JSON & APK downloads |
 | `share_plus` | ^10.0.0 | Share CSV & JSON backups via Android apps |
 | `file_picker` | ^8.1.7 | File picker for backup dataset restore |
-| `http` | ^1.2.0 | GitHub update check |
+| `http` | ^1.2.0 | GitHub update check & streamed APK download |
 | `flutter_animate` | ^4.5.0 | UI animations |
 
 ---
 
-## 🔄 Auto-Update
+## 🔄 Auto-Update & Notifications
 
-Simple Attende checks [GitHub Releases](https://github.com/KHILVANSH6789/Simple-Attende/releases) for newer versions. Go to **Settings → Updates → Check** to compare your current version with the latest release tag. If a new version is available, a banner will appear prompting you to download it.
+Simple Attende automatically checks [GitHub Releases](https://github.com/KHILVANSH6789/Simple-Attende/releases) for new versions on launch:
+- **System Notification**: Alerts your Android notification tray when an update is released.
+- **In-App Notification & Popup**: Shows an animated update banner on the Home dashboard and a changelog popup dialog.
+- **One-Tap Auto-Download & Install**: Streamed APK download with real-time percentage and MB progress that launches Android's package installer seamlessly.
+- **Manual Check**: Go to **Settings → Updates → Check** at any time.
 
 ---
 

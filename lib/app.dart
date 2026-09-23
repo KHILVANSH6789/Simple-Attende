@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/groups_provider.dart';
 import 'providers/attendance_provider.dart';
+import 'providers/update_provider.dart';
 import 'screens/intro/intro_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/group/group_screen.dart';
@@ -21,6 +22,7 @@ class SimpleAttendeApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProvider(create: (_) => GroupsProvider()),
         ChangeNotifierProvider(create: (_) => AttendanceProvider()),
+        ChangeNotifierProvider(create: (_) => UpdateProvider()),
       ],
       child: Consumer<SettingsProvider>(
         builder: (context, settings, _) {

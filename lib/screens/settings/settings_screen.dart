@@ -7,13 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/groups_provider.dart';
 import '../../providers/attendance_provider.dart';
+import '../../providers/update_provider.dart';
 import '../../core/storage/local_storage.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/models/group_model.dart';
@@ -27,46 +27,11 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  String _updateStatus = '';
-  bool _checkingUpdate = false;
-
-  static const String _currentVersion = '1.0.2';
   static const String _githubUser = 'KHILVANSH6789';
   static const String _githubRepo = 'Simple-Attende';
 
   void _playClick() {
     FeedbackService.tap(context);
-  }
-
-  Future<void> _checkForUpdates() async {
-    setState(() {
-      _checkingUpdate = true;
-      _updateStatus = '';
-    });
-    try {
-      final response = await http
-          .get(Uri.parse(
-              'https://api.github.com/repos/$_githubUser/$_githubRepo/releases/latest'))
-          .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) {
-        // Parse version from response
-        final tag = RegExp(r'"tag_name":"([^"]+)"')
-            .firstMatch(response.body)
-            ?.group(1)
-            ?.replaceAll('v', '') ?? '';
-        if (tag.isNotEmpty && tag != _currentVersion) {
-          setState(() => _updateStatus = '🎉 New version v$tag available!');
-        } else {
-          setState(() => _updateStatus = '✓ You\'re on the latest version.');
-        }
-      } else {
-        setState(() => _updateStatus = 'Could not check for updates.');
-      }
-    } catch (e) {
-      setState(() => _updateStatus = 'Check your internet connection.');
-    } finally {
-      setState(() => _checkingUpdate = false);
-    }
   }
 
   Future<void> _exportGroup(GroupModel group) async {
@@ -447,6 +412,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final settings = context.watch<SettingsProvider>();
     final colors = settings.colors;
     final groups = context.watch<GroupsProvider>().groups;
+    final update = context.watch<UpdateProvider>();
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -855,7 +821,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                           .textTheme
                                           .titleSmall
                                           ?.copyWith(color: colors.textPrimary)),
-                                  Text('Current version: v$_currentVersion',
+                                  Text('Current version: v${UpdateProvider.currentVersion}',
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodySmall
@@ -863,13 +829,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ],
                               ),
                               ElevatedButton(
-                                onPressed:
-                                    _checkingUpdate ? null : _checkForUpdates,
+                                onPressed: update.isChecking || update.isDownloading
+                                    ? null
+                                    : () {
+                                        _playClick();
+                                        update.checkForUpdates(silent: false);
+                                      },
                                 style: ElevatedButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 16, vertical: 10),
                                 ),
-                                child: _checkingUpdate
+                                child: update.isChecking
                                     ? SizedBox(
                                         width: 16,
                                         height: 16,
@@ -880,22 +850,118 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                             ],
                           ),
-                          if (_updateStatus.isNotEmpty) ...[
+                          if (update.statusMessage != null) ...[
                             const SizedBox(height: 10),
                             Container(
+                              width: double.infinity,
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
                                 color: colors.accent.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
-                                _updateStatus,
+                                update.statusMessage!,
                                 style: TextStyle(
                                     color: colors.accent,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w500),
                               ),
                             ),
+                          ],
+                          if (update.hasUpdate) ...[
+                            Divider(color: colors.cardBorder, height: 24),
+                            if (update.isDownloading) ...[
+                              Text(
+                                'Downloading Simple Attende v${update.latestVersion}...',
+                                style: TextStyle(
+                                  color: colors.textPrimary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: LinearProgressIndicator(
+                                  value: update.downloadProgress > 0 ? update.downloadProgress : null,
+                                  backgroundColor: colors.cardBorder,
+                                  color: colors.accent,
+                                  minHeight: 8,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '${(update.downloadProgress * 100).toStringAsFixed(1)}%',
+                                    style: TextStyle(
+                                      color: colors.accent,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  if (update.totalMb > 0)
+                                    Text(
+                                      '${update.downloadedMb.toStringAsFixed(1)} / ${update.totalMb.toStringAsFixed(1)} MB',
+                                      style: TextStyle(color: colors.textMuted, fontSize: 12),
+                                    ),
+                                ],
+                              ),
+                            ] else ...[
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'v${update.latestVersion} Available',
+                                          style: TextStyle(
+                                            color: colors.textPrimary,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        Text(
+                                          update.isReadyToInstall
+                                              ? 'Downloaded & ready to install'
+                                              : 'Tap to download & install update',
+                                          style: TextStyle(
+                                            color: colors.textMuted,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  ElevatedButton.icon(
+                                    onPressed: () async {
+                                      _playClick();
+                                      if (update.isReadyToInstall) {
+                                        await update.installDownloadedApk();
+                                      } else {
+                                        await update.downloadAndInstall();
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: colors.accent,
+                                      foregroundColor: colors.onAccent,
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                    ),
+                                    icon: Icon(
+                                      update.isReadyToInstall ? Icons.install_mobile_rounded : Icons.file_download_rounded,
+                                      size: 16,
+                                    ),
+                                    label: Text(
+                                      update.isReadyToInstall ? 'Install Now' : 'Download & Install',
+                                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
                         ],
                       ),
@@ -934,7 +1000,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                           ?.copyWith(color: colors.textPrimary),
                                     ),
                                     Text(
-                                      'Version $_currentVersion',
+                                      'Version ${UpdateProvider.currentVersion}',
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodySmall

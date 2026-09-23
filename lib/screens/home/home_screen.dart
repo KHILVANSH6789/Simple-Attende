@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/groups_provider.dart';
+import '../../providers/update_provider.dart';
 import '../../core/models/group_model.dart';
 import '../../core/services/sound_service.dart';
 import '../../widgets/group_card.dart';
@@ -20,6 +21,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _fabController;
   DateTime? _lastBackPressedTime;
+  bool _updatePopupShown = false;
 
   @override
   void initState() {
@@ -28,12 +30,187 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 300),
     )..forward();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAutoUpdate();
+    });
   }
 
   @override
   void dispose() {
     _fabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkAutoUpdate() async {
+    final updateProvider = context.read<UpdateProvider>();
+    final hasUpdate = await updateProvider.checkForUpdates(silent: true);
+    if (hasUpdate && mounted && !_updatePopupShown) {
+      _updatePopupShown = true;
+      _showUpdatePopup();
+    }
+  }
+
+  void _showUpdatePopup() {
+    final settings = context.read<SettingsProvider>();
+    final colors = settings.colors;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Consumer<UpdateProvider>(
+        builder: (context, upd, _) {
+          return AlertDialog(
+            backgroundColor: colors.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: colors.accent.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.system_update_rounded, color: colors.accent, size: 24),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Update Available',
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        'v${upd.latestVersion} is now live',
+                        style: TextStyle(color: colors.accent, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            content: upd.isDownloading
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Downloading update...',
+                        style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: upd.downloadProgress > 0 ? upd.downloadProgress : null,
+                          backgroundColor: colors.cardBorder,
+                          color: colors.accent,
+                          minHeight: 8,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${(upd.downloadProgress * 100).toStringAsFixed(1)}%',
+                            style: TextStyle(color: colors.accent, fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                          if (upd.totalMb > 0)
+                            Text(
+                              '${upd.downloadedMb.toStringAsFixed(1)} / ${upd.totalMb.toStringAsFixed(1)} MB',
+                              style: TextStyle(color: colors.textMuted, fontSize: 12),
+                            ),
+                        ],
+                      ),
+                      if (upd.statusMessage != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          upd.statusMessage!,
+                          style: TextStyle(color: colors.textMuted, fontSize: 11),
+                        ),
+                      ],
+                    ],
+                  )
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'A new version of Simple Attende is ready to install! Get the latest features, improvements, and fixes.',
+                        style: TextStyle(color: colors.textPrimary.withOpacity(0.9), fontSize: 13, height: 1.4),
+                      ),
+                      if (upd.releaseNotes.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        Container(
+                          constraints: const BoxConstraints(maxHeight: 160),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: colors.surfaceVariant,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: colors.cardBorder),
+                          ),
+                          child: SingleChildScrollView(
+                            child: Text(
+                              upd.releaseNotes,
+                              style: TextStyle(color: colors.textMuted, fontSize: 12, height: 1.3),
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (upd.statusMessage != null && !upd.hasUpdate) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          upd.statusMessage!,
+                          style: TextStyle(color: colors.textMuted, fontSize: 12),
+                        ),
+                      ],
+                    ],
+                  ),
+            actions: upd.isDownloading
+                ? null
+                : [
+                    TextButton(
+                      onPressed: () {
+                        _playClick();
+                        Navigator.pop(ctx);
+                      },
+                      child: Text('Later', style: TextStyle(color: colors.textMuted)),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        _playClick();
+                        if (upd.isReadyToInstall) {
+                          await upd.installDownloadedApk();
+                        } else {
+                          await upd.downloadAndInstall();
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colors.accent,
+                        foregroundColor: colors.onAccent,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      ),
+                      icon: Icon(
+                        upd.isReadyToInstall ? Icons.install_mobile_rounded : Icons.file_download_rounded,
+                        size: 18,
+                      ),
+                      label: Text(
+                        upd.isReadyToInstall ? 'Install Now' : 'Update Now',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+          );
+        },
+      ),
+    );
   }
 
   void _playClick() {
@@ -61,6 +238,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final settings = context.watch<SettingsProvider>();
     final colors = settings.colors;
     final groups = context.watch<GroupsProvider>().groups;
+    final update = context.watch<UpdateProvider>();
 
     return PopScope(
       canPop: false,
@@ -143,6 +321,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                       ),
                                 ),
                               ),
+                              // Update badge icon if update is available
+                              if (update.hasUpdate)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: Stack(
+                                    children: [
+                                      _IconBtn(
+                                        icon: Icons.system_update_rounded,
+                                        colors: colors,
+                                        onTap: () {
+                                          _playClick();
+                                          _showUpdatePopup();
+                                        },
+                                      ),
+                                      Positioned(
+                                        right: 2,
+                                        top: 2,
+                                        child: Container(
+                                          width: 8,
+                                          height: 8,
+                                          decoration: BoxDecoration(
+                                            color: colors.accent,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               // Settings button
                               _IconBtn(
                                 icon: Icons.settings_rounded,
@@ -167,6 +374,88 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                   ),
                 ),
+
+                // In-App Update Banner
+                if (update.hasUpdate && !update.dismissedBanner)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              colors.accent.withOpacity(0.18),
+                              colors.accentSecondary.withOpacity(0.12),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: colors.accent.withOpacity(0.4), width: 1.2),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: colors.accent,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(Icons.system_update_rounded, color: colors.onAccent, size: 20),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Update v${update.latestVersion} Available',
+                                    style: TextStyle(
+                                      color: colors.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  Text(
+                                    update.isDownloading
+                                        ? 'Downloading: ${(update.downloadProgress * 100).toStringAsFixed(0)}%'
+                                        : 'Tap to download & install update',
+                                    style: TextStyle(color: colors.textMuted, fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                _playClick();
+                                _showUpdatePopup();
+                              },
+                              style: TextButton.styleFrom(
+                                backgroundColor: colors.accent,
+                                foregroundColor: colors.onAccent,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: Text(
+                                update.isDownloading ? 'View' : 'Update',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              icon: Icon(Icons.close_rounded, size: 18, color: colors.textMuted),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                              onPressed: () {
+                                _playClick();
+                                update.dismissBanner();
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
 
                 // Body
                 groups.isEmpty

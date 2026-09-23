@@ -84,7 +84,7 @@ class LocalStorage {
     final attendance = getAttendance();
     final data = {
       'app': 'Simple Attende',
-      'version': '1.0.2',
+      'version': '1.0.3',
       'exportedAt': DateTime.now().toIso8601String(),
       'groups': groups.map((g) => g.toJson()).toList(),
       'attendance': attendance.toJson(),
