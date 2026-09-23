@@ -1,6 +1,7 @@
 // ============================================================
 // lib/core/storage/local_storage.dart
 // ============================================================
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/group_model.dart';
 import '../models/attendance_model.dart';
@@ -76,4 +77,32 @@ class LocalStorage {
   // ── Intro shown ────────────────────────────────────────────
   static bool getIntroShown() => _p.getBool('intro_shown') ?? false;
   static Future<void> setIntroShown() async => _p.setBool('intro_shown', true);
+
+  // ── Full Backup Export & Import ─────────────────────────────
+  static String exportFullBackupJson() {
+    final groups = getGroups();
+    final attendance = getAttendance();
+    final data = {
+      'app': 'Simple Attende',
+      'version': '1.0.2',
+      'exportedAt': DateTime.now().toIso8601String(),
+      'groups': groups.map((g) => g.toJson()).toList(),
+      'attendance': attendance.toJson(),
+    };
+    return const JsonEncoder.withIndent('  ').convert(data);
+  }
+
+  static Map<String, dynamic>? parseBackupJson(String jsonStr) {
+    try {
+      final decoded = jsonDecode(jsonStr);
+      if (decoded is! Map) return null;
+      final map = Map<String, dynamic>.from(decoded);
+      if (!map.containsKey('groups') && !map.containsKey('attendance')) {
+        return null;
+      }
+      return map;
+    } catch (_) {
+      return null;
+    }
+  }
 }

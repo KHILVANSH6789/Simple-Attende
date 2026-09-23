@@ -2,9 +2,11 @@
 // lib/screens/settings/settings_screen.dart
 // ============================================================
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -12,6 +14,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/groups_provider.dart';
 import '../../providers/attendance_provider.dart';
+import '../../core/storage/local_storage.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/models/group_model.dart';
 import '../../core/services/sound_service.dart';
@@ -27,7 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _updateStatus = '';
   bool _checkingUpdate = false;
 
-  static const String _currentVersion = '1.0.1';
+  static const String _currentVersion = '1.0.2';
   static const String _githubUser = 'KHILVANSH6789';
   static const String _githubRepo = 'Simple-Attende';
 
@@ -85,6 +88,355 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Export failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportFullBackup() async {
+    _playClick();
+    try {
+      final jsonStr = LocalStorage.exportFullBackupJson();
+      final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/simple_attende_backup_$dateStr.json');
+      await file.writeAsString(jsonStr);
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: 'Simple Attende Backup - $dateStr',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Backup export failed: $e')),
+        );
+      }
+    }
+  }
+
+  void _showImportOptionsDialog() {
+    _playClick();
+    final colors = context.read<SettingsProvider>().colors;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Import Dataset',
+                style: TextStyle(
+                  color: colors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Select a previously exported Simple Attende backup file (.json) or paste the JSON text.',
+                style: TextStyle(color: colors.textMuted, fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: colors.accent.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.file_open_rounded, color: colors.accent),
+                ),
+                title: Text(
+                  'Select Backup File',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(
+                  'Pick a .json backup file from device storage',
+                  style: TextStyle(color: colors.textMuted, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndImportFile();
+                },
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: colors.accentSecondary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.paste_rounded, color: colors.accentSecondary),
+                ),
+                title: Text(
+                  'Paste JSON Text',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(
+                  'Paste raw backup JSON directly from clipboard',
+                  style: TextStyle(color: colors.textMuted, fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showPasteJsonDialog();
+                },
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndImportFile() async {
+    _playClick();
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (result != null && result.files.isNotEmpty) {
+        final path = result.files.single.path;
+        if (path != null) {
+          final file = File(path);
+          final content = await file.readAsString();
+          _processImportJson(content);
+        } else if (result.files.single.bytes != null) {
+          final content = utf8.decode(result.files.single.bytes!);
+          _processImportJson(content);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to read file: $e')),
+        );
+      }
+    }
+  }
+
+  void _showPasteJsonDialog() {
+    _playClick();
+    final colors = context.read<SettingsProvider>().colors;
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Paste Backup JSON',
+          style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w700),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: TextField(
+            controller: controller,
+            maxLines: 8,
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontFamily: 'monospace',
+              fontSize: 12,
+            ),
+            decoration: InputDecoration(
+              hintText: '{\n  "groups": [...],\n  "attendance": "..."\n}',
+              hintStyle: TextStyle(color: colors.textMuted.withOpacity(0.5)),
+              filled: true,
+              fillColor: colors.surfaceVariant,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: colors.cardBorder),
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final text = controller.text.trim();
+              Navigator.pop(ctx);
+              if (text.isNotEmpty) {
+                _processImportJson(text);
+              }
+            },
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _processImportJson(String jsonStr) {
+    final parsed = LocalStorage.parseBackupJson(jsonStr);
+    if (parsed == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.redAccent,
+          content: Text('Invalid backup JSON format. Please select a valid Simple Attende backup file.'),
+        ),
+      );
+      return;
+    }
+
+    final rawGroups = parsed['groups'] as List<dynamic>? ?? [];
+    final groupCount = rawGroups.length;
+
+    _showImportConfirmationDialog(parsed, groupCount);
+  }
+
+  void _showImportConfirmationDialog(Map<String, dynamic> backupData, int groupCount) {
+    final colors = context.read<SettingsProvider>().colors;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.cloud_download_rounded, color: colors.accent, size: 24),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Import Dataset',
+                style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Backup parsed successfully! Found $groupCount group(s) with attendance records.',
+              style: TextStyle(color: colors.textPrimary, fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colors.surfaceVariant,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: colors.cardBorder),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Choose Import Mode:',
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '• Merge: Adds new groups and records without deleting existing data.',
+                    style: TextStyle(color: colors.textMuted, fontSize: 12),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '• Replace All: Clears all current groups & attendance, restoring only the backup.',
+                    style: TextStyle(color: Colors.redAccent, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
+          ),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Colors.redAccent),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _applyImport(backupData, replace: true);
+            },
+            child: const Text('Replace All', style: TextStyle(color: Colors.redAccent)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _applyImport(backupData, replace: false);
+            },
+            child: const Text('Merge Data'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _applyImport(Map<String, dynamic> data, {required bool replace}) async {
+    final groupsProvider = context.read<GroupsProvider>();
+    final attendanceProvider = context.read<AttendanceProvider>();
+
+    try {
+      final rawGroups = (data['groups'] as List<dynamic>? ?? [])
+          .map((e) => GroupModel.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+
+      final rawAttendance = data['attendance'];
+      String attendanceJson = '';
+      if (rawAttendance is String) {
+        attendanceJson = rawAttendance;
+      } else if (rawAttendance is Map) {
+        attendanceJson = jsonEncode(rawAttendance);
+      }
+
+      await groupsProvider.importGroups(rawGroups, replace: replace);
+      if (attendanceJson.isNotEmpty) {
+        await attendanceProvider.importAttendance(attendanceJson, replace: replace);
+      }
+
+      if (mounted) {
+        FeedbackService.tap(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF2E7D32),
+            content: Text(
+              replace
+                  ? 'Data replaced successfully with ${rawGroups.length} group(s).'
+                  : 'Successfully merged ${rawGroups.length} group(s) & attendance records.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.redAccent,
+            content: Text('Import failed: $e'),
+          ),
         );
       }
     }
@@ -237,23 +589,187 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     const SizedBox(height: 20),
 
-                    // ── Export ──────────────────────────────────────
+                    // ── Data & Backup ──────────────────────────────
                     _SectionHeader(
-                        title: 'Export Data',
-                        icon: Icons.file_download_rounded,
+                        title: 'Data & Backup',
+                        icon: Icons.storage_rounded,
                         colors: colors),
                     const SizedBox(height: 10),
+
+                    // Local storage warning banner
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFA000).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: const Color(0xFFFFA000).withOpacity(0.4),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.only(top: 2),
+                            child: Icon(
+                              Icons.warning_amber_rounded,
+                              color: Color(0xFFFFA000),
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Local Storage Warning',
+                                  style: TextStyle(
+                                    color: Color(0xFFFFA000),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'All attendance and group records are saved locally on this device. Clearing app data or uninstalling will permanently delete all attendance data, which will be unrecoverable later. Export regular backups to prevent data loss.',
+                                  style: TextStyle(
+                                    color: colors.textPrimary.withOpacity(0.9),
+                                    fontSize: 12,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
                     _SettingsCard(
                       colors: colors,
-                      child: groups.isEmpty
-                          ? Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: Text(
-                                'No groups to export.',
-                                style: TextStyle(color: colors.textMuted),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Backup & Restore Action Buttons
+                          Row(
+                            children: [
+                              Expanded(
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: _exportFullBackup,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: colors.surfaceVariant,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: colors.cardBorder),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: colors.accent.withOpacity(0.15),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Icon(Icons.file_upload_rounded,
+                                              color: colors.accent, size: 20),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text('Export Backup',
+                                                  style: TextStyle(
+                                                      color: colors.textPrimary,
+                                                      fontWeight: FontWeight.w600,
+                                                      fontSize: 13)),
+                                              Text('Save JSON backup',
+                                                  style: TextStyle(
+                                                      color: colors.textMuted,
+                                                      fontSize: 11)),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ),
-                            )
-                          : Column(
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: _showImportOptionsDialog,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: colors.surfaceVariant,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: colors.cardBorder),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: colors.accentSecondary
+                                                .withOpacity(0.15),
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: Icon(
+                                              Icons.file_download_rounded,
+                                              color: colors.accentSecondary,
+                                              size: 20),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text('Import Dataset',
+                                                  style: TextStyle(
+                                                      color: colors.textPrimary,
+                                                      fontWeight: FontWeight.w600,
+                                                      fontSize: 13)),
+                                              Text('Restore from JSON',
+                                                  style: TextStyle(
+                                                      color: colors.textMuted,
+                                                      fontSize: 11)),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          if (groups.isNotEmpty) ...[
+                            Divider(color: colors.cardBorder, height: 28),
+                            Text(
+                              'EXPORT GROUP CSV',
+                              style: TextStyle(
+                                color: colors.textMuted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Column(
                               children: groups.asMap().entries.map((entry) {
                                 final i = entry.key;
                                 final g = entry.value;
@@ -262,8 +778,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     ListTile(
                                       contentPadding: EdgeInsets.zero,
                                       leading: Container(
-                                        width: 38,
-                                        height: 38,
+                                        width: 36,
+                                        height: 36,
                                         decoration: BoxDecoration(
                                           gradient: LinearGradient(colors: [
                                             colors.accent,
@@ -278,7 +794,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                             style: const TextStyle(
                                                 color: Colors.white,
                                                 fontWeight: FontWeight.w700,
-                                                fontSize: 16),
+                                                fontSize: 15),
                                           ),
                                         ),
                                       ),
@@ -310,6 +826,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 );
                               }).toList(),
                             ),
+                          ],
+                        ],
+                      ),
                     ),
 
                     const SizedBox(height: 20),

@@ -97,6 +97,41 @@ class GroupsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<int> importGroups(List<GroupModel> imported, {bool replace = false}) async {
+    if (replace) {
+      _groups = imported;
+    } else {
+      for (final ig in imported) {
+        final existingIndex = _groups.indexWhere((g) => g.id == ig.id);
+        if (existingIndex >= 0) {
+          final existing = _groups[existingIndex];
+          existing.name = ig.name;
+          for (final cat in ig.categories) {
+            if (!existing.categories.contains(cat)) existing.categories.add(cat);
+          }
+          for (final im in ig.members) {
+            final mIndex = existing.members.indexWhere((m) => m.id == im.id);
+            if (mIndex >= 0) {
+              existing.members[mIndex] = im;
+            } else {
+              existing.members.add(im);
+            }
+          }
+        } else {
+          _groups.add(ig);
+        }
+      }
+    }
+    await _save();
+    notifyListeners();
+    return imported.length;
+  }
+
+  Future<void> reload() async {
+    _groups = LocalStorage.getGroups();
+    notifyListeners();
+  }
+
   Future<void> _save() async {
     await LocalStorage.saveGroups(_groups);
   }

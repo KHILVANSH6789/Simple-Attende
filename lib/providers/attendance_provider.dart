@@ -209,7 +209,23 @@ class AttendanceProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  // ── Export helpers ─────────────────────────────────────────
+  // ── Import / Export helpers ────────────────────────────────
+  Future<void> importAttendance(String jsonStr, {bool replace = false}) async {
+    final incoming = AttendanceData.fromJson(jsonStr);
+    if (replace) {
+      _data = incoming;
+    } else {
+      _data.merge(incoming);
+    }
+    await LocalStorage.saveAttendance(_data);
+    notifyListeners();
+  }
+
+  Future<void> reload() async {
+    _data = LocalStorage.getAttendance();
+    notifyListeners();
+  }
+
   String exportGroupCsv(
       String groupId, String groupName, List<dynamic> members, String dateStr) {
     final sb = StringBuffer();

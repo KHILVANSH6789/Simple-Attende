@@ -49,6 +49,18 @@ class AttendanceData {
     return data[groupId]?[dateStr] ?? {};
   }
 
+  void merge(AttendanceData other) {
+    for (final groupEntry in other.data.entries) {
+      data.putIfAbsent(groupEntry.key, () => {});
+      for (final dateEntry in groupEntry.value.entries) {
+        data[groupEntry.key]!.putIfAbsent(dateEntry.key, () => {});
+        for (final memberEntry in dateEntry.value.entries) {
+          data[groupEntry.key]![dateEntry.key]![memberEntry.key] = memberEntry.value;
+        }
+      }
+    }
+  }
+
   String toJson() => jsonEncode(data.map(
         (gId, dates) => MapEntry(
           gId,

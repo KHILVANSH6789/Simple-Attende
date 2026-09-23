@@ -66,13 +66,16 @@
 - Tap any date to see the complete attendance snapshot for that day
 - Direct Quick Dial button for absent members on selected dates
 
-### ⚙️ Settings
+### ⚙️ Settings, Data & Backup
 - **Theme switcher** with color swatch previews
 - **Sound & Haptics** — toggle UI click sounds and subtle tactile vibration feedback
+- **Local Storage Warning** — clear warning advising that clearing app data deletes attendance data permanently
+- **Full JSON Backup Export** — one-tap export of all groups, members, and complete historical attendance records
+- **Dataset Import** — restore or merge backup datasets directly from `.json` files or clipboard text with Merge / Replace options
+- **CSV export per group** — share attendance spreadsheets via any Android app
 - **GitHub Repository** — instant link to source repository in browser
-- **CSV export** — share attendance data for any group via any Android app
 - **Auto-update checker** — checks GitHub for newer releases
-- App version and about info
+- **App version and about info**
 
 ### 🔊 Sound Effects & Haptics
 - **Polyphonic low-latency audio pool**: Rapid consecutive button clicks play simultaneously without truncating preceding audio
@@ -81,18 +84,19 @@
 
 ---
 
-## 🎬 Intro Animation
+## 🎬 Intro Animation & Adaptive Icon
 
-On every app launch, the **Simple Attende logo slides in from the left** with a smooth spring animation, a dynamic glow effect, and the intro sound plays simultaneously. The screen then fades out to the home page. The splash background color matches your selected theme. Tap anywhere to skip.
+- On every app launch, the **Simple Attende logo slides in from the left** with a smooth spring animation, a dynamic glow effect, and the intro sound plays simultaneously. The screen then fades out to the home page. The splash background color matches your selected theme. Tap anywhere to skip.
+- **Optimized Android Adaptive Icon**: Engineered with calibrated safe-zone inner padding so circular and squircle launcher masks display the full emblem cleanly with zero magnification or edge clipping.
 
 ---
 
 ## 🗂️ Data & Privacy
 
 - **100% local** — all data stays on your device in Android SharedPreferences
-- No internet connection required (except for the optional update check)
-- No accounts, no sign-in, no cloud sync
-- Export your data at any time as a CSV file
+- **No cloud dependency** — no accounts, no sign-in, no tracking
+- **Backup & Restore** — export and import full JSON backup datasets at any time (supporting both merge and replace)
+- **Warning**: Because all data is strictly stored locally, clearing app data or uninstalling will permanently remove all records. Always keep exported backups safe!
 
 ---
 
@@ -128,13 +132,8 @@ flutter build apk --debug
 
 ### Release APK
 ```bash
-flutter build apk --release --shrink
+flutter build apk --release
 # Output: build/app/outputs/flutter-apk/app-release.apk
-```
-
-### Split APKs by ABI (smaller file per device)
-```bash
-flutter build apk --split-per-abi --release
 ```
 
 ---
@@ -150,15 +149,15 @@ lib/
 │   ├── theme/
 │   │   └── app_theme.dart           # 3 themes with full color tokens + Material ThemeData
 │   ├── storage/
-│   │   └── local_storage.dart       # SharedPreferences wrapper
+│   │   └── local_storage.dart       # SharedPreferences wrapper + Backup JSON export & parser
 │   └── models/
 │       ├── group_model.dart         # Group + Member models with JSON serialization
-│       └── attendance_model.dart    # AttendanceRecord, AttendanceStatus, AttendanceData
+│       └── attendance_model.dart    # AttendanceRecord, AttendanceStatus, AttendanceData + merge()
 │
 ├── providers/
-│   ├── settings_provider.dart       # Theme + sound state management
-│   ├── groups_provider.dart         # Group/member CRUD
-│   └── attendance_provider.dart     # Attendance state, midnight reset, CSV export
+│   ├── settings_provider.dart       # Theme + sound/haptic state management
+│   ├── groups_provider.dart         # Group/member CRUD + importGroups()
+│   └── attendance_provider.dart     # Attendance state, midnight reset, CSV export + importAttendance()
 │
 ├── screens/
 │   ├── intro/
@@ -168,11 +167,11 @@ lib/
 │   ├── group/
 │   │   ├── group_screen.dart        # Tab container + group header
 │   │   └── tabs/
-│   │       ├── attendance_tab.dart  # Daily attendance with toggles
+│   │       ├── attendance_tab.dart  # Daily attendance with toggles + Quick Dial
 │   │       ├── members_tab.dart     # Member CRUD + category manager
-│   │       └── calendar_tab.dart    # Monthly calendar + historical view
+│   │       └── calendar_tab.dart    # Calendar + per-member filter & period stats
 │   └── settings/
-│       └── settings_screen.dart     # Theme, sound, export, update checker
+│       └── settings_screen.dart     # Theme, sound/haptic, warning card, JSON export/import, CSV
 │
 └── widgets/
     └── group_card.dart              # Animated group card with stats
@@ -191,8 +190,9 @@ lib/
 | `google_fonts` | ^6.2.1 | Space Grotesk + Nunito fonts |
 | `intl` | ^0.19.0 | Date formatting |
 | `uuid` | ^4.4.0 | Unique IDs for groups/members |
-| `path_provider` | ^2.1.3 | File paths for CSV export |
-| `share_plus` | ^10.0.0 | Share CSV via Android apps |
+| `path_provider` | ^2.1.3 | File paths for CSV & JSON export |
+| `share_plus` | ^10.0.0 | Share CSV & JSON backups via Android apps |
+| `file_picker` | ^8.1.7 | File picker for backup dataset restore |
 | `http` | ^1.2.0 | GitHub update check |
 | `flutter_animate` | ^4.5.0 | UI animations |
 
