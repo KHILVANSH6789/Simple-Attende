@@ -28,7 +28,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final AudioPlayer _clickPlayer = AudioPlayer();
 
   static const String _currentVersion = '1.0.0';
-  static const String _githubUser = 'your-username'; // update after repo created
+  static const String _githubUser = 'KHILVANSH6789';
   static const String _githubRepo = 'Simple-Attende';
 
   @override
