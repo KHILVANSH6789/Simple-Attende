@@ -98,6 +98,91 @@ class AttendanceProvider extends ChangeNotifier {
     }).whereType<DateTime>().toSet();
   }
 
+  // Returns all attendance records for a specific member across all dates in group
+  Map<String, AttendanceRecord> getMemberHistory(String groupId, String memberId) {
+    final Map<String, AttendanceRecord> result = {};
+    final groupData = _data.data[groupId];
+    if (groupData == null) return result;
+
+    for (final dateEntry in groupData.entries) {
+      final rec = dateEntry.value[memberId];
+      if (rec != null && rec.status != AttendanceStatus.unset) {
+        result[dateEntry.key] = rec;
+      }
+    }
+    return result;
+  }
+
+  // Set of dates where a specific member was marked present or absent
+  Set<DateTime> getDatesWithDataForMember(String groupId, String memberId) {
+    final history = getMemberHistory(groupId, memberId);
+    return history.keys.map((d) {
+      try {
+        return _dateFormat.parse(d);
+      } catch (_) {
+        return null;
+      }
+    }).whereType<DateTime>().toSet();
+  }
+
+  // Calculates period statistics (Weekly, Monthly, Yearly) for a specific member
+  Map<String, dynamic> getMemberPeriodStats(
+      String groupId, String memberId, DateTime referenceDate, String period) {
+    final history = getMemberHistory(groupId, memberId);
+
+    DateTime start;
+    DateTime end;
+
+    if (period == 'Weekly') {
+      // Monday of the week
+      final weekday = referenceDate.weekday; // 1 = Monday, 7 = Sunday
+      start = DateTime(referenceDate.year, referenceDate.month, referenceDate.day - (weekday - 1));
+      end = DateTime(start.year, start.month, start.day + 6, 23, 59, 59);
+    } else if (period == 'Monthly') {
+      start = DateTime(referenceDate.year, referenceDate.month, 1);
+      final nextMonth = (referenceDate.month == 12)
+          ? DateTime(referenceDate.year + 1, 1, 1)
+          : DateTime(referenceDate.year, referenceDate.month + 1, 1);
+      end = nextMonth.subtract(const Duration(seconds: 1));
+    } else {
+      // Yearly
+      start = DateTime(referenceDate.year, 1, 1);
+      end = DateTime(referenceDate.year, 12, 31, 23, 59, 59);
+    }
+
+    int present = 0;
+    int absent = 0;
+    final Map<String, AttendanceRecord> periodRecords = {};
+
+    for (final entry in history.entries) {
+      try {
+        final d = _dateFormat.parse(entry.key);
+        if ((d.isAfter(start) || d.isAtSameMomentAs(start)) &&
+            (d.isBefore(end) || d.isAtSameMomentAs(end))) {
+          periodRecords[entry.key] = entry.value;
+          if (entry.value.status == AttendanceStatus.present) {
+            present++;
+          } else if (entry.value.status == AttendanceStatus.absent) {
+            absent++;
+          }
+        }
+      } catch (_) {}
+    }
+
+    final total = present + absent;
+    final rate = total > 0 ? ((present / total) * 100).toStringAsFixed(1) : '0.0';
+
+    return {
+      'present': present,
+      'absent': absent,
+      'total': total,
+      'rate': rate,
+      'records': periodRecords,
+      'startDate': start,
+      'endDate': end,
+    };
+  }
+
   void _checkAndResetIfNewDay() {
     final today = todayStr;
     final lastReset = LocalStorage.getLastResetDate();

@@ -11,6 +11,7 @@ class GroupCard extends StatefulWidget {
   final GroupModel group;
   final dynamic colors;
   final VoidCallback onTap;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const GroupCard({
@@ -18,6 +19,7 @@ class GroupCard extends StatefulWidget {
     required this.group,
     required this.colors,
     required this.onTap,
+    required this.onEdit,
     required this.onDelete,
   });
 
@@ -152,9 +154,23 @@ class _GroupCardState extends State<GroupCard>
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
                         onSelected: (v) {
+                          if (v == 'edit') widget.onEdit();
                           if (v == 'delete') widget.onDelete();
                         },
                         itemBuilder: (_) => [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit_outlined,
+                                    color: colors.textPrimary, size: 18),
+                                const SizedBox(width: 8),
+                                Text('Rename Group',
+                                    style: TextStyle(
+                                        color: colors.textPrimary, fontSize: 14)),
+                              ],
+                            ),
+                          ),
                           PopupMenuItem(
                             value: 'delete',
                             child: Row(

@@ -75,4 +75,18 @@ class MemberModel {
     }
     return name.isNotEmpty ? name[0].toUpperCase() : '?';
   }
+
+  String? get phoneNumber {
+    for (final entry in fields.entries) {
+      final key = entry.key.toLowerCase();
+      if (key.contains('phone') ||
+          key.contains('mobile') ||
+          key.contains('contact') ||
+          key.contains('tel')) {
+        final val = entry.value.trim();
+        if (val.isNotEmpty) return val;
+      }
+    }
+    return null;
+  }
 }

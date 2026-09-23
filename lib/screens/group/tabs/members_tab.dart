@@ -3,10 +3,10 @@
 // ============================================================
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:audioplayers/audioplayers.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/groups_provider.dart';
 import '../../../core/models/group_model.dart';
+import '../../../core/services/sound_service.dart';
 
 class MembersTab extends StatefulWidget {
   final GroupModel group;
@@ -19,25 +19,19 @@ class MembersTab extends StatefulWidget {
 class _MembersTabState extends State<MembersTab> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  final AudioPlayer _savePlayer = AudioPlayer();
-  final AudioPlayer _clickPlayer = AudioPlayer();
 
   @override
   void dispose() {
     _searchController.dispose();
-    _savePlayer.dispose();
-    _clickPlayer.dispose();
     super.dispose();
   }
 
-  Future<void> _playClick() async {
-    final s = Provider.of<SettingsProvider>(context, listen: false);
-    if (s.soundEnabled) await _clickPlayer.play(AssetSource('audio/Button_Click.mp3'));
+  void _playClick() {
+    FeedbackService.tap(context);
   }
 
-  Future<void> _playSave() async {
-    final s = Provider.of<SettingsProvider>(context, listen: false);
-    if (s.soundEnabled) await _savePlayer.play(AssetSource('audio/Save_Button.mp3'));
+  void _playSave() {
+    FeedbackService.save(context);
   }
 
   List<MemberModel> get _filteredMembers {
@@ -357,6 +351,7 @@ class _MemberFormSheetState extends State<_MemberFormSheet> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    FeedbackService.save(context);
     final fields = {
       for (final entry in _controllers.entries)
         entry.key: entry.value.text.trim()
@@ -417,8 +412,9 @@ class _MemberFormSheetState extends State<_MemberFormSheet> {
                   ),
                   validator: cat == 'Name'
                       ? (v) {
-                          if (v == null || v.trim().isEmpty)
+                          if (v == null || v.trim().isEmpty) {
                             return 'Name is required';
+                          }
                           return null;
                         }
                       : null,

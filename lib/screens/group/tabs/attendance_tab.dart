@@ -4,11 +4,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../providers/attendance_provider.dart';
 import '../../../core/models/group_model.dart';
 import '../../../core/models/attendance_model.dart';
+import '../../../core/services/sound_service.dart';
 
 class AttendanceTab extends StatefulWidget {
   final GroupModel group;
@@ -21,20 +22,15 @@ class AttendanceTab extends StatefulWidget {
 class _AttendanceTabState extends State<AttendanceTab> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  final AudioPlayer _clickPlayer = AudioPlayer();
 
   @override
   void dispose() {
     _searchController.dispose();
-    _clickPlayer.dispose();
     super.dispose();
   }
 
-  Future<void> _playClick() async {
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    if (settings.soundEnabled) {
-      await _clickPlayer.play(AssetSource('audio/Button_Click.mp3'));
-    }
+  void _playClick() {
+    FeedbackService.tap(context);
   }
 
   List<MemberModel> get _filteredMembers {
@@ -299,6 +295,37 @@ class _MemberAttendanceTile extends StatelessWidget {
             // Toggle buttons
             Row(
               children: [
+                if (record.status == AttendanceStatus.absent &&
+                    member.phoneNumber != null) ...[
+                  Tooltip(
+                    message: 'Call ${member.displayName}',
+                    child: GestureDetector(
+                      onTap: () async {
+                        FeedbackService.tap(context);
+                        final uri = Uri.parse('tel:${member.phoneNumber}');
+                        if (await canLaunchUrl(uri)) {
+                          await launchUrl(uri);
+                        }
+                      },
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        margin: const EdgeInsets.only(right: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: Colors.green.withValues(alpha: 0.4)),
+                        ),
+                        child: const Icon(
+                          Icons.phone_in_talk_rounded,
+                          size: 18,
+                          color: Colors.greenAccent,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
                 _AttendanceBtn(
                   icon: Icons.check_rounded,
                   isActive: record.status == AttendanceStatus.present,

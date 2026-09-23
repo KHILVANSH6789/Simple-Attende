@@ -4,7 +4,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -14,6 +14,7 @@ import '../../providers/groups_provider.dart';
 import '../../providers/attendance_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/models/group_model.dart';
+import '../../core/services/sound_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -25,21 +26,13 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   String _updateStatus = '';
   bool _checkingUpdate = false;
-  final AudioPlayer _clickPlayer = AudioPlayer();
 
-  static const String _currentVersion = '1.0.0';
+  static const String _currentVersion = '1.0.1';
   static const String _githubUser = 'KHILVANSH6789';
   static const String _githubRepo = 'Simple-Attende';
 
-  @override
-  void dispose() {
-    _clickPlayer.dispose();
-    super.dispose();
-  }
-
-  Future<void> _playClick() async {
-    final s = Provider.of<SettingsProvider>(context, listen: false);
-    if (s.soundEnabled) await _clickPlayer.play(AssetSource('audio/Button_Click.mp3'));
+  void _playClick() {
+    FeedbackService.tap(context);
   }
 
   Future<void> _checkForUpdates() async {
@@ -171,36 +164,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     const SizedBox(height: 20),
 
-                    // ── Sound ──────────────────────────────────────
+                    // ── Sound & Haptics ────────────────────────────
                     _SectionHeader(
-                        title: 'Sound', icon: Icons.volume_up_rounded, colors: colors),
+                        title: 'Sound & Haptics',
+                        icon: Icons.volume_up_rounded,
+                        colors: colors),
                     const SizedBox(height: 10),
                     _SettingsCard(
                       colors: colors,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      child: Column(
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Sound Effects',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleSmall
-                                      ?.copyWith(color: colors.textPrimary)),
-                              Text('Button clicks, saves, and intro',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(color: colors.textMuted)),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Sound Effects',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(color: colors.textPrimary)),
+                                  Text('Button clicks, saves, and intro audio',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(color: colors.textMuted)),
+                                ],
+                              ),
+                              Switch(
+                                value: settings.soundEnabled,
+                                onChanged: (v) {
+                                  FeedbackService.haptic(context);
+                                  settings.setSoundEnabled(v);
+                                },
+                                activeTrackColor: colors.accent,
+                              ),
                             ],
                           ),
-                          Switch(
-                            value: settings.soundEnabled,
-                            onChanged: (v) {
-                              settings.setSoundEnabled(v);
-                            },
-                            activeColor: colors.accent,
+                          Divider(color: colors.cardBorder, height: 24),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Haptic Feedback',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(color: colors.textPrimary)),
+                                  Text('Subtle vibrations on taps & interactions',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(color: colors.textMuted)),
+                                ],
+                              ),
+                              Switch(
+                                value: settings.hapticsEnabled,
+                                onChanged: (v) {
+                                  settings.setHapticsEnabled(v);
+                                  if (v) FeedbackService.haptic(context);
+                                },
+                                activeTrackColor: colors.accent,
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -361,43 +390,105 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SizedBox(height: 10),
                     _SettingsCard(
                       colors: colors,
-                      child: Row(
+                      child: Column(
                         children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: Image.asset(
-                              'assets/images/SimpleAttende_AppIcon.png',
-                              width: 52,
-                              height: 52,
-                            ),
+                          Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(14),
+                                child: Image.asset(
+                                  'assets/images/SimpleAttende_AppIcon.png',
+                                  width: 52,
+                                  height: 52,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Simple Attende',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(color: colors.textPrimary),
+                                    ),
+                                    Text(
+                                      'Version $_currentVersion',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(color: colors.textMuted),
+                                    ),
+                                    Text(
+                                      'Attendance, simplified.',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(color: colors.textMuted),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Simple Attende',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(color: colors.textPrimary),
-                                ),
-                                Text(
-                                  'Version $_currentVersion',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(color: colors.textMuted),
-                                ),
-                                Text(
-                                  'Attendance, simplified.',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(color: colors.textMuted),
-                                ),
-                              ],
+                          Divider(color: colors.cardBorder, height: 28),
+                          // GitHub Repository Tile
+                          InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () async {
+                              FeedbackService.tap(context);
+                              final url = Uri.parse(
+                                  'https://github.com/$_githubUser/$_githubRepo');
+                              if (await canLaunchUrl(url)) {
+                                await launchUrl(url,
+                                    mode: LaunchMode.externalApplication);
+                              }
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 6, horizontal: 2),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 38,
+                                    height: 38,
+                                    decoration: BoxDecoration(
+                                      color: colors.surfaceVariant,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(Icons.code_rounded,
+                                        size: 20, color: colors.accent),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'GitHub Repository',
+                                          style: TextStyle(
+                                            color: colors.textPrimary,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        Text(
+                                          'github.com/$_githubUser/$_githubRepo',
+                                          style: TextStyle(
+                                            color: colors.textMuted,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(Icons.open_in_new_rounded,
+                                      size: 18, color: colors.accent),
+                                ],
+                              ),
                             ),
                           ),
                         ],

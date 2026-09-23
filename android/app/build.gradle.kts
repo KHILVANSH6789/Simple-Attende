@@ -36,6 +36,10 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    aaptOptions {
+        noCompress("mp3", "wav", "ogg")
+    }
 }
 
 kotlin {

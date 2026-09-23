@@ -1,12 +1,9 @@
-// ============================================================
-// lib/screens/group/group_screen.dart
-// ============================================================
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:audioplayers/audioplayers.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/groups_provider.dart';
 import '../../core/models/group_model.dart';
+import '../../core/services/sound_service.dart';
 import 'tabs/attendance_tab.dart';
 import 'tabs/members_tab.dart';
 import 'tabs/calendar_tab.dart';
@@ -22,7 +19,6 @@ class GroupScreen extends StatefulWidget {
 class _GroupScreenState extends State<GroupScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final AudioPlayer _clickPlayer = AudioPlayer();
 
   @override
   void initState() {
@@ -33,15 +29,11 @@ class _GroupScreenState extends State<GroupScreen>
   @override
   void dispose() {
     _tabController.dispose();
-    _clickPlayer.dispose();
     super.dispose();
   }
 
-  Future<void> _playClick() async {
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    if (settings.soundEnabled) {
-      await _clickPlayer.play(AssetSource('audio/Button_Click.mp3'));
-    }
+  void _playClick() {
+    FeedbackService.tap(context);
   }
 
   @override
@@ -223,6 +215,72 @@ class _GroupHeader extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          IconButton(
+            icon: Icon(Icons.edit_outlined, size: 20, color: colors.textMuted),
+            tooltip: 'Rename Group',
+            onPressed: () => _showRenameDialog(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRenameDialog(BuildContext context) {
+    FeedbackService.tap(context);
+    final controller = TextEditingController(text: group.name);
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Rename Group',
+            style: Theme.of(context).textTheme.titleLarge),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Group Name',
+              prefixIcon: Icon(Icons.edit_rounded),
+            ),
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'Please enter a name';
+              if (v.trim().length < 2) return 'Name too short';
+              return null;
+            },
+            onFieldSubmitted: (_) {
+              if (formKey.currentState!.validate()) {
+                FeedbackService.save(context);
+                context
+                    .read<GroupsProvider>()
+                    .updateGroupName(group.id, controller.text.trim());
+                Navigator.pop(ctx);
+              }
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                FeedbackService.save(context);
+                context
+                    .read<GroupsProvider>()
+                    .updateGroupName(group.id, controller.text.trim());
+                Navigator.pop(ctx);
+              }
+            },
+            icon: const Icon(Icons.check_rounded, size: 18),
+            label: const Text('Save'),
           ),
         ],
       ),

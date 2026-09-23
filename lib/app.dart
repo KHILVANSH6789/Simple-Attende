@@ -28,9 +28,10 @@ class SimpleAttendeApp extends StatelessWidget {
             title: 'Simple Attende',
             debugShowCheckedModeBanner: false,
             theme: settings.materialTheme,
-            initialRoute: '/intro',
+            initialRoute: '/',
             onGenerateRoute: (routeSettings) {
               switch (routeSettings.name) {
+                case '/':
                 case '/intro':
                   return _route(const IntroScreen(), routeSettings);
                 case '/home':

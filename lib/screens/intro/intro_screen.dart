@@ -4,8 +4,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:audioplayers/audioplayers.dart';
 import '../../providers/settings_provider.dart';
+import '../../core/services/sound_service.dart';
 
 class IntroScreen extends StatefulWidget {
   const IntroScreen({super.key});
@@ -24,7 +24,6 @@ class _IntroScreenState extends State<IntroScreen>
   late Animation<double> _scaleAnim;
   late Animation<double> _glowAnim;
 
-  final AudioPlayer _player = AudioPlayer();
   bool _animationDone = false;
 
   @override
@@ -77,10 +76,11 @@ class _IntroScreenState extends State<IntroScreen>
     await Future.delayed(const Duration(milliseconds: 300));
 
     // Play intro sound
+    if (!mounted) return;
     final settingsProvider =
         Provider.of<SettingsProvider>(context, listen: false);
     if (settingsProvider.soundEnabled) {
-      await _player.play(AssetSource('audio/Intro_Sound.mp3'));
+      await SoundService.instance.playIntro();
     }
 
     // Start slide-in animation
@@ -90,19 +90,23 @@ class _IntroScreenState extends State<IntroScreen>
     await Future.delayed(const Duration(milliseconds: 900));
 
     // Fade out to home
-    setState(() => _animationDone = true);
-    await _fadeController.forward();
-
     if (mounted) {
-      Navigator.of(context).pushReplacementNamed('/home');
+      setState(() => _animationDone = true);
+      await _fadeController.forward();
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+      }
     }
   }
 
   void _skipIntro() {
     if (!_animationDone) {
       _slideController.stop();
+      SoundService.instance.stopIntro();
       _fadeController.forward().then((_) {
-        if (mounted) Navigator.of(context).pushReplacementNamed('/home');
+        if (mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+        }
       });
     }
   }
@@ -111,7 +115,6 @@ class _IntroScreenState extends State<IntroScreen>
   void dispose() {
     _slideController.dispose();
     _fadeController.dispose();
-    _player.dispose();
     super.dispose();
   }
 

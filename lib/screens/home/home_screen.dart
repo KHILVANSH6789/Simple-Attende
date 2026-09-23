@@ -2,12 +2,12 @@
 // lib/screens/home/home_screen.dart
 // ============================================================
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:audioplayers/audioplayers.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/groups_provider.dart';
-import '../../providers/attendance_provider.dart';
 import '../../core/models/group_model.dart';
+import '../../core/services/sound_service.dart';
 import '../../widgets/group_card.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -19,7 +19,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _fabController;
-  final AudioPlayer _clickPlayer = AudioPlayer();
+  DateTime? _lastBackPressedTime;
 
   @override
   void initState() {
@@ -33,15 +33,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void dispose() {
     _fabController.dispose();
-    _clickPlayer.dispose();
     super.dispose();
   }
 
-  Future<void> _playClick() async {
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    if (settings.soundEnabled) {
-      await _clickPlayer.play(AssetSource('audio/Button_Click.mp3'));
-    }
+  void _playClick() {
+    FeedbackService.tap(context);
   }
 
   void _showCreateGroupDialog() {
@@ -52,137 +48,174 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  void _showEditGroupDialog(GroupModel group) {
+    _playClick();
+    showDialog(
+      context: context,
+      builder: (ctx) => _EditGroupDialog(group: group),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
     final colors = settings.colors;
     final groups = context.watch<GroupsProvider>().groups;
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [colors.background, colors.backgroundGradientEnd],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        final now = DateTime.now();
+        if (_lastBackPressedTime == null ||
+            now.difference(_lastBackPressedTime!) > const Duration(seconds: 2)) {
+          _lastBackPressedTime = now;
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Press back again to exit',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.symmetric(horizontal: 48, vertical: 20),
+            ),
+          );
+        } else {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: colors.background,
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [colors.background, colors.backgroundGradientEnd],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: CustomScrollView(
-            slivers: [
-              // App Bar
-              SliverAppBar(
-                floating: true,
-                pinned: false,
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                expandedHeight: 120,
-                flexibleSpace: FlexibleSpaceBar(
-                  titlePadding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  title: null,
-                  background: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.asset(
-                                'assets/images/SimpleAttende_AppIcon.png',
-                                width: 38,
-                                height: 38,
-                                fit: BoxFit.cover,
+          child: SafeArea(
+            child: CustomScrollView(
+              slivers: [
+                // App Bar
+                SliverAppBar(
+                  automaticallyImplyLeading: false,
+                  floating: true,
+                  pinned: false,
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  expandedHeight: 120,
+                  flexibleSpace: FlexibleSpaceBar(
+                    titlePadding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    title: null,
+                    background: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.asset(
+                                  'assets/images/SimpleAttende_AppIcon.png',
+                                  width: 38,
+                                  height: 38,
+                                  fit: BoxFit.cover,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Simple Attende',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleLarge
-                                    ?.copyWith(
-                                      color: colors.textPrimary,
-                                      fontWeight: FontWeight.w800,
-                                    ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Simple Attende',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleLarge
+                                      ?.copyWith(
+                                        color: colors.textPrimary,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                ),
                               ),
-                            ),
-                            // Settings button
-                            _IconBtn(
-                              icon: Icons.settings_rounded,
-                              colors: colors,
-                              onTap: () {
-                                _playClick();
-                                Navigator.pushNamed(context, '/settings');
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Your attendance groups',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(color: colors.textMuted),
-                        ),
-                      ],
+                              // Settings button
+                              _IconBtn(
+                                icon: Icons.settings_rounded,
+                                colors: colors,
+                                onTap: () {
+                                  _playClick();
+                                  Navigator.pushNamed(context, '/settings');
+                                },
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Your attendance groups',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(color: colors.textMuted),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
 
-              // Body
-              groups.isEmpty
-                  ? SliverFillRemaining(
-                      child: _EmptyState(colors: colors),
-                    )
-                  : SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                      sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final group = groups[index];
-                            return GroupCard(
-                              group: group,
-                              colors: colors,
-                              onTap: () {
-                                _playClick();
-                                Navigator.pushNamed(
-                                  context,
-                                  '/group',
-                                  arguments: group.id,
-                                );
-                              },
-                              onDelete: () => _confirmDelete(group),
-                            );
-                          },
-                          childCount: groups.length,
+                // Body
+                groups.isEmpty
+                    ? SliverFillRemaining(
+                        child: _EmptyState(colors: colors),
+                      )
+                    : SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final group = groups[index];
+                              return GroupCard(
+                                group: group,
+                                colors: colors,
+                                onTap: () {
+                                  _playClick();
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/group',
+                                    arguments: group.id,
+                                  );
+                                },
+                                onEdit: () => _showEditGroupDialog(group),
+                                onDelete: () => _confirmDelete(group),
+                              );
+                            },
+                            childCount: groups.length,
+                          ),
                         ),
                       ),
-                    ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
-      floatingActionButton: ScaleTransition(
-        scale: CurvedAnimation(
-            parent: _fabController, curve: Curves.easeOutBack),
-        child: FloatingActionButton.extended(
-          onPressed: _showCreateGroupDialog,
-          backgroundColor: colors.accent,
-          foregroundColor: colors.onAccent,
-          icon: const Icon(Icons.add_rounded),
-          label: Text(
-            'New Group',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: colors.onAccent,
+        floatingActionButton: ScaleTransition(
+          scale: CurvedAnimation(
+              parent: _fabController, curve: Curves.easeOutBack),
+          child: FloatingActionButton.extended(
+            onPressed: _showCreateGroupDialog,
+            backgroundColor: colors.accent,
+            foregroundColor: colors.onAccent,
+            icon: const Icon(Icons.add_rounded),
+            label: Text(
+              'New Group',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: colors.onAccent,
+              ),
             ),
           ),
         ),
@@ -215,6 +248,89 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 }
 
+// ── Edit Group Dialog ──────────────────────────────────────────
+class _EditGroupDialog extends StatefulWidget {
+  final GroupModel group;
+  const _EditGroupDialog({required this.group});
+
+  @override
+  State<_EditGroupDialog> createState() => _EditGroupDialogState();
+}
+
+class _EditGroupDialogState extends State<_EditGroupDialog> {
+  late final TextEditingController _controller;
+  final _formKey = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.group.name);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    FeedbackService.save(context);
+    await context
+        .read<GroupsProvider>()
+        .updateGroupName(widget.group.id, _controller.text.trim());
+    if (mounted) {
+      Navigator.pop(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.watch<SettingsProvider>().colors;
+    return AlertDialog(
+      backgroundColor: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text('Rename Group',
+          style: Theme.of(context).textTheme.titleLarge),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextFormField(
+              controller: _controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Group Name',
+                prefixIcon: Icon(Icons.edit_rounded),
+              ),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return 'Please enter a name';
+                if (v.trim().length < 2) return 'Name too short';
+                return null;
+              },
+              onFieldSubmitted: (_) => _save(),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
+        ),
+        ElevatedButton.icon(
+          onPressed: _save,
+          icon: const Icon(Icons.check_rounded, size: 18),
+          label: const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
 // ── Create Group Dialog ────────────────────────────────────────
 class _CreateGroupDialog extends StatefulWidget {
   @override
@@ -224,21 +340,16 @@ class _CreateGroupDialog extends StatefulWidget {
 class _CreateGroupDialogState extends State<_CreateGroupDialog> {
   final _controller = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  final AudioPlayer _savePlayer = AudioPlayer();
 
   @override
   void dispose() {
     _controller.dispose();
-    _savePlayer.dispose();
     super.dispose();
   }
 
   Future<void> _create() async {
     if (!_formKey.currentState!.validate()) return;
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    if (settings.soundEnabled) {
-      await _savePlayer.play(AssetSource('audio/Save_Button.mp3'));
-    }
+    FeedbackService.save(context);
     final group =
         await context.read<GroupsProvider>().createGroup(_controller.text.trim());
     if (mounted) {

@@ -28,11 +28,17 @@ class LocalStorage {
     await _p.setString('theme', t.storageKey);
   }
 
-  // ── Sound ──────────────────────────────────────────────────
+  // ── Sound & Haptics ───────────────────────────────────────
   static bool getSoundEnabled() => _p.getBool('sound_enabled') ?? true;
 
   static Future<void> saveSoundEnabled(bool v) async {
     await _p.setBool('sound_enabled', v);
+  }
+
+  static bool getHapticsEnabled() => _p.getBool('haptics_enabled') ?? true;
+
+  static Future<void> saveHapticsEnabled(bool v) async {
+    await _p.setBool('haptics_enabled', v);
   }
 
   // ── Groups ─────────────────────────────────────────────────
